@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+hospital.db
+ml/data/symptom_dataset.csv
+ml/department_model.joblib
+.streamlit/secrets.toml
+.venv/
+venv/
+*.egg-info/
+.DS_Store
