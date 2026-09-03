@@ -25,6 +25,8 @@ from ml.symptom_data import ALL_SYMPTOMS
 
 
 def train():
+    os.makedirs(os.path.dirname(DATASET_PATH), exist_ok=True)
+    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
     if not os.path.exists(DATASET_PATH):
         from ml.generate_dataset import generate_dataset
         generate_dataset().to_csv(DATASET_PATH, index=False)
