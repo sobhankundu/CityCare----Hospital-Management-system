@@ -17,7 +17,12 @@ from utils.security import hash_password
 
 logger = logging.getLogger(__name__)
 
-_engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# check_same_thread is a SQLite-only pragma (needed because Streamlit's
+# session handling can touch the connection from more than one thread); a
+# real Postgres driver doesn't accept this argument at all, so it must only
+# be passed when we're actually running against a local SQLite file.
+_connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+_engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False)
 
 # A representative seed roster so the app looks "populated" out of the box,
