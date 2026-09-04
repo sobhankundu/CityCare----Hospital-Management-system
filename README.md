@@ -1,16 +1,19 @@
-# CityCare — Hospital Management System 
- Click here --> https://citycare-hospital-sk.streamlit.app/
+# CityCare — Hospital Management System
+
+**Live demo:** [citycare-hospital-sk.streamlit.app](https://citycare-hospital-sk.streamlit.app/)
 
 A full-stack hospital management web app: patient registration, appointment
 booking with live token queues, a staff operations dashboard, and an
 ML-powered symptom checker + triage chatbot that recommends which department
 to see and how urgently.
 
-Built with **Python, Streamlit, SQLAlchemy (SQLite), and scikit-learn**.
+Built with **Python, Streamlit, SQLAlchemy (Postgres via Neon in production,
+SQLite for zero-setup local development), and scikit-learn**.
 
 > This started as a Tkinter + raw-SQL desktop script. It was rebuilt from the
-> ground up as a deployable web app with a proper service layer, real
-> authentication, automated tests, and a machine learning component. See
+> ground up as a deployed web app with a proper service layer, real
+> authentication, a persistent cloud database, automated tests, and a machine
+> learning component. See
 > [What changed from the original version](#what-changed-from-the-original-version)
 > for the full before/after.
 
@@ -34,8 +37,9 @@ Built with **Python, Streamlit, SQLAlchemy (SQLite), and scikit-learn**.
 **Engineering**
 - Role-based authentication (admin / patient) with PBKDF2 password hashing — no plaintext passwords, ever
 - Every database write goes through SQLAlchemy's ORM, so no query is ever built by string-formatting user input — this is what actually closes the SQL-injection hole in the original script
+- Configurable persistence layer — SQLite locally for zero-setup development, managed Postgres (Neon) in production, switched entirely through a `DATABASE_URL` secret with no change to the ORM/service layer
 - A synthetic-but-structured ML training pipeline (dataset generation → training → evaluation → inference) that's fully reproducible from source
-- 35 automated tests (`pytest`) covering validators, services, booking edge cases, and the ML pipeline — including a regression test for a real bug caught during development (see below)
+- 35 automated tests (`pytest`) covering validators, services, booking edge cases, and the ML pipeline — including regression tests for two real bugs caught during development (see below)
 
 ---
 
@@ -44,7 +48,7 @@ Built with **Python, Streamlit, SQLAlchemy (SQLite), and scikit-learn**.
 ```
 hospital_management_system/
 ├── app.py                     # Entrypoint: DB init, login/signup, role-based nav
-├── config.py                  # Central constants (departments, blood groups, time slots...)
+├── config.py                  # Central constants + DATABASE_URL resolution (env/secrets/local fallback)
 ├── database/
 │   ├── models.py              # SQLAlchemy ORM schema
 │   └── db.py                  # Engine/session management + first-run seeding
@@ -121,6 +125,23 @@ just whether the code ran without crashing. The fix (require every word,
 including severity qualifiers, to match) and the regression test that pins
 this behavior are both in `tests/test_predictor.py`.
 
+### A production lesson learned (also worth mentioning)
+
+After the first deploy, patient and appointment data disappeared every time
+the free-tier host put the app to sleep and restarted it. The cause wasn't a
+code bug: SQLite was storing data as a file inside the container's own disk,
+and a fresh container after a restart means a fresh, empty file — the
+database was never actually persistent, it just looked that way during a
+single continuous session. The fix was moving to a managed Postgres database
+(Neon's free tier) with the connection string injected via environment-based
+secrets, so the data now lives independently of the app container's
+lifecycle. The code change itself was small — a `DATABASE_URL` resolver in
+`config.py` and a couple of driver-specific lines in `database/db.py` — but
+recognizing *why* a setup that worked perfectly on localhost breaks
+specifically under ephemeral hosting, and fixing the actual constraint
+instead of patching around the symptom, is the part worth being able to
+explain.
+
 ---
 
 ## Setup
@@ -137,14 +158,18 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-The database (`hospital.db`), an admin account, and a seed roster of doctors
-are all created automatically on first run. A pre-trained model is shipped in
-`ml/`, but if it's ever deleted, `ml/predictor.py` will regenerate the
-dataset and retrain automatically the next time a prediction is requested.
+With no `DATABASE_URL` configured, the app automatically falls back to a
+local SQLite file (`hospital.db`), created on first run along with an admin
+account and a seed roster of doctors — no external database needed for local
+development. A pre-trained ML model is shipped in `ml/`, but if it's ever
+deleted, `ml/predictor.py` regenerates the dataset and retrains automatically
+the next time a prediction is requested.
 
-**Demo login:** username `admin`, password `admin123` (change this before
-any real deployment — see [Known limitations](#known-limitations-and-honest-next-steps)).
-Patients can self sign-up from the login screen.
+**Local demo login:** username `admin`, password `admin123` (this is the
+fallback default baked into `config.py` for local/SQLite runs only — see
+[Known limitations](#known-limitations-and-honest-next-steps) for the caveat
+on how the live deployment's admin password is currently handled). Patients
+can self sign-up from the login screen.
 
 ### Running the tests
 
@@ -152,20 +177,30 @@ Patients can self sign-up from the login screen.
 pytest tests/ -v
 ```
 
+Tests always run against an isolated in-memory SQLite database regardless of
+`DATABASE_URL`, so no external database is needed to run the suite.
+
 ### Deploying
 
-This is a standard Streamlit app, so it deploys as-is to
-[Streamlit Community Cloud](https://streamlit.io/cloud) (point it at `app.py`)
-or any container host — a minimal `Dockerfile` would be:
+The live demo runs on **Streamlit Community Cloud** with a **Neon** Postgres
+database for persistent storage:
 
-```dockerfile
-FROM python:3.12-slim
-WORKDIR /app
-COPY . .
-RUN pip install --no-cache-dir -r requirements.txt
-EXPOSE 8501
-CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0"]
-```
+1. Push the repo to GitHub, then create an app on
+   [share.streamlit.io](https://share.streamlit.io) pointing at `app.py`.
+2. Create a free database at [neon.tech](https://neon.tech) and copy its
+   connection string.
+3. In the app's Settings → Secrets, add:
+   ```toml
+   DATABASE_URL = "postgresql://user:password@host/dbname?sslmode=require"
+   ```
+4. `config.py` picks this up automatically (env var or Streamlit secret, with
+   `postgres://` normalised to `postgresql://` for compatibility) — no code
+   changes needed between environments.
+
+This also deploys as-is to any container host — a minimal `Dockerfile` is
+included in the repo; just set `DATABASE_URL` as an environment variable on
+whichever platform you use instead of a SQLite fallback if you want data to
+survive restarts.
 
 ---
 
@@ -173,9 +208,10 @@ CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0"]
 
 | | Original script | This version |
 |---|---|---|
-| **Interface** | Tkinter desktop app, multiple `Tk()` root windows (unstable) | Streamlit web app — one link, deployable, works on mobile |
+| **Interface** | Tkinter desktop app, multiple `Tk()` root windows (unstable) | Streamlit web app — one link, deployed publicly, works on mobile |
 | **Database access** | Raw SQL strings built with `.format()`/f-strings | SQLAlchemy ORM — parameterised by construction |
 | **Known bugs** | `%s` placeholders used with `sqlite3` (wrong syntax — these queries crashed); appointment numbers picked from a shared 6-value pool (guaranteed collisions) | Fixed; token numbers are sequential per-doctor-per-day |
+| **Data persistence** | N/A — single-user local file, no deployment | Managed Postgres (Neon) in production; survives restarts and redeploys |
 | **Auth** | None — anyone could view/edit any record | Role-based login, PBKDF2-hashed passwords |
 | **Validation** | None — age/phone/etc. accepted any text | Regex + range validation on every field, with tests |
 | **Doctors/departments** | Hard-coded `if/elif` chains in the UI code | Data-driven from the database, editable via the admin UI |
@@ -190,6 +226,14 @@ CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0"]
 Worth stating explicitly, because knowing the edges of what you built is part
 of demonstrating seniority:
 
+- **The live deployment's admin password currently lives in `config.py`,
+  which is committed to this public repo.** It got set there directly during
+  development rather than through a secret, the same way `DATABASE_URL` is
+  handled. That's fine for a disposable local demo, but it means the
+  password in this file *is* the live admin password right now — the
+  immediate next step is moving `DEFAULT_ADMIN_PASSWORD` to a Streamlit
+  secret/environment variable exactly like the database connection string,
+  and rotating the live password once that's in place.
 - **The symptom-checker dataset is synthetic**, not real clinical data. It's
   built from an authored domain mapping (see `ml/symptom_data.py`), not
   patient records, and isn't a substitute for a clinically validated tool.
@@ -197,12 +241,6 @@ of demonstrating seniority:
   entries managed by admins; a natural next step is a doctor account that can
   log in and manage their own queue/notes directly, rather than going through
   the admin's "Manage Appointments" screen.
-- **Default admin credentials ship in the repo** for demo convenience. A real
-  deployment needs the admin password rotated on first login and the default
-  credentials removed from `config.py`.
-- **SQLite** is fine for a portfolio/demo deployment; a real multi-clinic
-  system would move to Postgres (the SQLAlchemy layer makes that a
-  `config.py` connection-string change, not a rewrite).
 - **No email/SMS appointment reminders or payment integration** — out of
   scope for this project, but the `Appointment` model already has the fields
   a reminder job would need to query against.
