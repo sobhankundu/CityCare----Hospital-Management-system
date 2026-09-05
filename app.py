@@ -19,10 +19,8 @@ from utils.ui import inject_css, page_header
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide")
 
 
-@st.cache_resource
 def _bootstrap_db():
     init_db()
-    return True
 
 
 _bootstrap_db()
