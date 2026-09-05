@@ -86,6 +86,25 @@ class Appointment(Base):
 
     patient = relationship("Patient", back_populates="appointments")
     doctor = relationship("Doctor", back_populates="appointments")
+    payment = relationship("Payment", back_populates="appointment", uselist=False)
+
+class Payment(Base):
+    """Counter payment record, one per appointment. Recorded by front-desk
+    staff when the patient pays in person -- this is not an online payment
+    gateway, it's a record of cash/card/UPI collected at the hospital.
+    """
+    __tablename__ = "payments"
+    
+    id = Column(Integer, primary_key=True)
+    appointment_id = Column(Integer, ForeignKey("appointments.id"), nullable=False, unique=True)
+    amount = Column(Integer, nullable=False)
+    method = Column(String(20), nullable=True)  # Cash | Card | UPI -- set once paid
+    status = Column(String(20), default="Pending")  # Pending | Paid | Waived
+    collected_by = Column(String(64), nullable=True)  # username of the staff member who collected it
+    paid_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    appointment = relationship("Appointment", back_populates="payment")
 
 
 class MedicalRecord(Base):

@@ -47,6 +47,12 @@ with session_scope() as session:
                         f"**{doc.name}** · {doc.department} · Room {doc.room_no}  \n"
                         f"{a.appointment_date} at {a.appointment_time} — Token #{a.token_no:03d}"
                     )
+                    if a.payment:
+                        fee_line = f"Consultation fee: ₹{a.payment.amount} — "
+                        fee_line += "✅ Paid" if a.payment.status == "Paid" else (
+                            "⏳ Pay at the counter" if a.payment.status == "Pending" else "Waived"
+                        )
+                        st.caption(fee_line)
                 with right:
                     st.markdown(status_badge(a.status), unsafe_allow_html=True)
                     if a.predicted_urgency:

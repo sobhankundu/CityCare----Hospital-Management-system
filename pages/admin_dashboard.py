@@ -8,6 +8,7 @@ import streamlit as st
 from database.db import session_scope
 from database.models import Patient, Doctor, Appointment, SymptomCheckLog
 from ml.predictor import model_metadata
+from services.payment_service import revenue_summary_for_date
 from utils.ui import inject_css, page_header, URGENCY_COLORS, STATUS_COLORS
 
 inject_css()
@@ -29,6 +30,15 @@ with session_scope() as session:
     col2.metric("Active Doctors", n_doctors)
     col3.metric("Appointments Today", n_appts_today)
     col4.metric("Total Appointments", n_appts_total)
+
+    st.divider()
+    st.subheader("💳 Today's Billing")
+    revenue = revenue_summary_for_date(session)
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Collected Today", f"₹{revenue['collected']}", f"{revenue['paid_count']} paid")
+    r2.metric("Pending Today", f"₹{revenue['pending']}", f"{revenue['pending_count']} unpaid")
+    r3.metric("Waived Today", f"₹{revenue['waived']}")
+    st.caption("Full queue and payment collection: **Counter Billing** page.")
 
     st.divider()
 

@@ -132,6 +132,7 @@ admin_pages = [
     st.Page("pages/admin_dashboard.py", title="Dashboard", icon="📊"),
     st.Page("pages/register_patient.py", title="Register Patient", icon="📝"),
     st.Page("pages/manage_appointments.py", title="Manage Appointments", icon="📅"),
+    st.Page("pages/counter_payment.py", title="Counter Billing", icon="💳"),
     st.Page("pages/search_records.py", title="Search Records", icon="🔍"),
     st.Page("pages/doctor_directory.py", title="Doctor Directory", icon="👨‍⚕️"),
     st.Page("pages/symptom_checker.py", title="Symptom Checker", icon="🩺"),

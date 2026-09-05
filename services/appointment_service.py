@@ -71,6 +71,10 @@ def book_appointment(
     session.add(appt)
     session.commit()
     session.refresh(appt)
+
+    from services.payment_service import create_payment_for_appointment
+    create_payment_for_appointment(session, appt)
+
     return appt
 
 
