@@ -72,6 +72,7 @@ BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 URGENCY_LEVELS = ["Low", "Medium", "High", "Emergency"]
 
 APPOINTMENT_STATUSES = ["Scheduled", "Completed", "Cancelled", "No-show"]
+
 PAYMENT_METHODS = ["Cash", "Card", "UPI"]
 PAYMENT_STATUSES = ["Pending", "Paid", "Waived"]
 
