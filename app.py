@@ -144,6 +144,12 @@ pages = admin_pages if role == "admin" else patient_pages
 with st.sidebar:
     st.markdown(f"**{APP_ICON} {APP_NAME}**")
     st.caption(f"Logged in as `{st.session_state.user['username']}` ({role})")
+    if role == "admin":
+        from config import DATABASE_URL
+        if DATABASE_URL.startswith("sqlite"):
+            st.warning("⚠️ DB: SQLite (not persistent!)", icon="⚠️")
+        else:
+            st.success("🟢 DB: Postgres (persistent)", icon="🟢")
     if st.button("Log out", use_container_width=True):
         st.session_state.user = None
         st.session_state.patient_govt_id = None
