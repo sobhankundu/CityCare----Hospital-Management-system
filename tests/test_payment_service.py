@@ -83,3 +83,29 @@ def test_revenue_summary_reflects_paid_and_pending(session):
 
 def test_fee_for_unknown_department_has_fallback():
     assert fee_for_department("Some Made Up Department") == 500
+
+def test_revenue_summary_for_year_aggregates_correctly(session):
+    from services.payment_service import revenue_summary_for_year, available_years
+    from datetime import date
+
+    register_patient(session, "111111111111", "Patient One", 25, "M", "9876500001", "O+")
+    doc_id = _doctor_id(session)
+    today = date.today()
+
+    appt1 = book_appointment(session, "111111111111", doc_id, today, "10:00")
+    mark_paid(session, appt1.id, "Cash", collected_by="admin")
+
+    summary = revenue_summary_for_year(session, today.year)
+    assert summary["year"] == today.year
+    assert summary["collected"] == fee_for_department(appt1.doctor.department)
+    # exactly one month should show the collected amount, the rest should be zero
+    this_month_entry = [m for m in summary["monthly"] if m["amount"] > 0]
+    assert len(this_month_entry) == 1
+    assert this_month_entry[0]["amount"] == summary["collected"]
+
+
+def test_available_years_always_includes_current_year(session):
+    from services.payment_service import available_years
+    from datetime import date
+    years = available_years(session)
+    assert date.today().year in years

@@ -107,3 +107,51 @@ def revenue_summary_for_date(session, target_date=None) -> dict:
         "paid_count": sum(1 for _, p in rows if p and p.status == "Paid"),
         "pending_count": sum(1 for _, p in rows if p and p.status == "Pending"),
     }
+
+
+def available_years(session) -> list:
+    """Years that have at least one appointment, newest first -- for
+    populating a year-selector dropdown. Always includes the current year
+    even on a brand-new install with no data yet, so the selector isn't empty."""
+    years = {a_date.year for (a_date,) in session.query(Appointment.appointment_date).all()}
+    years.add(date_cls.today().year)
+    return sorted(years, reverse=True)
+
+
+def revenue_summary_for_year(session, year: int = None) -> dict:
+    """Yearly rollup plus a month-by-month breakdown of collected revenue,
+    for the trend chart on the billing page. Filtering by a plain date range
+    (rather than a SQL date-part function) keeps this identical whether the
+    app is running on SQLite locally or Postgres in production."""
+    from calendar import month_abbr
+
+    year = year or date_cls.today().year
+    start = date_cls(year, 1, 1)
+    end = date_cls(year, 12, 31)
+
+    appointments = (
+        session.query(Appointment)
+        .filter(Appointment.appointment_date >= start, Appointment.appointment_date <= end)
+        .filter(Appointment.status != "Cancelled")
+        .all()
+    )
+    rows = [(a, a.payment) for a in appointments]
+
+    collected = sum(p.amount for _, p in rows if p and p.status == "Paid")
+    pending = sum(p.amount for _, p in rows if p and p.status == "Pending")
+    waived = sum(p.amount for _, p in rows if p and p.status == "Waived")
+
+    monthly_collected = {m: 0 for m in range(1, 13)}
+    for a, p in rows:
+        if p and p.status == "Paid":
+            monthly_collected[a.appointment_date.month] += p.amount
+
+    monthly = [{"month": month_abbr[m], "amount": monthly_collected[m]} for m in range(1, 13)]
+
+    return {
+        "year": year,
+        "collected": collected,
+        "pending": pending,
+        "waived": waived,
+        "monthly": monthly,
+    }

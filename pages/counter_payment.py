@@ -1,12 +1,15 @@
 from datetime import date
 
+import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from config import PAYMENT_METHODS
 from database.db import session_scope
 from services.payment_service import (
     appointments_with_payment_for_date, mark_paid, waive_payment,
-    revenue_summary_for_date, PaymentError,
+    revenue_summary_for_date, revenue_summary_for_year, available_years,
+    PaymentError,
 )
 from utils.ui import inject_css, page_header, status_badge
 from utils.upi import generate_upi_qr
@@ -20,6 +23,36 @@ st.caption(
     "your usual cash drawer / card machine; this just records what was collected."
 )
 
+PLOTLY_TEMPLATE = dict(
+    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(family="IBM Plex Sans, sans-serif", color="#16241F"),
+)
+
+# --- Yearly overview: total billing for the year + a month-by-month trend ---
+st.subheader("📈 Yearly Overview")
+with session_scope() as session:
+    years = available_years(session)
+    selected_year = st.selectbox("Year", years, index=0)
+    yearly = revenue_summary_for_year(session, selected_year)
+
+    y1, y2, y3 = st.columns(3)
+    y1.metric(f"Total Collected in {selected_year}", f"₹{yearly['collected']}")
+    y2.metric("Pending", f"₹{yearly['pending']}")
+    y3.metric("Waived", f"₹{yearly['waived']}")
+
+    monthly_df = pd.DataFrame(yearly["monthly"])
+    fig = px.bar(
+        monthly_df, x="month", y="amount",
+        labels={"month": "", "amount": "Collected (₹)"},
+        color_discrete_sequence=["#0F6B62"],
+    )
+    fig.update_layout(**PLOTLY_TEMPLATE, height=320, margin=dict(l=0, r=0, t=10, b=0))
+    st.plotly_chart(fig, use_container_width=True)
+
+st.divider()
+
+# --- Date-wise drill-down: the day-to-day billing/collection screen ---
+st.subheader("📋 Day-by-Day Billing")
 col1, col2 = st.columns([1, 3])
 with col1:
     target_date = st.date_input("Date", value=date.today())
