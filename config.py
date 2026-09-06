@@ -75,6 +75,8 @@ APPOINTMENT_STATUSES = ["Scheduled", "Completed", "Cancelled", "No-show"]
 
 PAYMENT_METHODS = ["Cash", "Card", "UPI"]
 PAYMENT_STATUSES = ["Pending", "Paid", "Waived"]
+UPI_MERCHANT_VPA = "sobhan-kundu@ptyes"  # (Paytm upi id)<-- replace with your real UPI ID to accept real payments
+UPI_MERCHANT_NAME = "Sobhan Kundu"
 
 DEPARTMENT_FEES = {
     "General Medicine": 400,
@@ -89,7 +91,7 @@ DEPARTMENT_FEES = {
     "Gastroenterology": 750,
 }
 
-USER_ROLES = ["admin", "doctor", "patient"]
+USER_ROLES = ["admin", "doctor", "staff", "patient"]
 
 TIME_SLOTS = [
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",

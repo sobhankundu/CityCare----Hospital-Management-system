@@ -24,9 +24,10 @@ def username_exists(session, username: str) -> bool:
 
 
 def create_user(session, username: str, password: str, role: str) -> User:
+    from config import USER_ROLES
     if username_exists(session, username):
         raise ValueError(f"Username '{username}' is already taken.")
-    if role not in ("admin", "doctor", "patient"):
+    if role not in USER_ROLES:
         raise ValueError(f"Invalid role: {role}")
     pw_hash, salt = hash_password(password)
     user = User(username=username, password_hash=pw_hash, salt=salt, role=role)
@@ -34,3 +35,20 @@ def create_user(session, username: str, password: str, role: str) -> User:
     session.commit()
     session.refresh(user)
     return user
+
+
+def all_staff(session):
+    return session.query(User).filter_by(role="staff").order_by(User.created_at.desc()).all()
+
+
+def deactivate_user(session, user_id: int, requesting_username: str) -> None:
+    """Hard-deletes a staff login. Refuses to let an admin delete their own
+    account through this path, since that's almost always a mis-click, not
+    an intended action, and could lock the account out of undoing it."""
+    user = session.query(User).filter_by(id=user_id).first()
+    if user is None:
+        raise ValueError("User not found.")
+    if user.username == requesting_username:
+        raise ValueError("You can't deactivate your own account.")
+    session.delete(user)
+    session.commit()

@@ -87,6 +87,11 @@ if submitted:
             )
             st.success(f"Appointment confirmed with {doctor_label} on {appt_date} at {appt_time}.")
             token_display(appt.token_no, label="YOUR TOKEN NUMBER")
+            if appt.payment:
+                st.info(
+                    f"💳 Consultation fee: **₹{appt.payment.amount}** — payable in cash, card, or UPI "
+                    f"at the hospital counter when you arrive."
+                )
         st.session_state.recommended_department = None
     except BookingError as e:
         st.error(str(e))

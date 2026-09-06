@@ -20,6 +20,13 @@ st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide")
 
 
 def _bootstrap_db():
+    # Deliberately NOT wrapped in st.cache_resource. Base.metadata.create_all()
+    # and the seed check are both idempotent and cheap (a couple of fast
+    # existence-check queries), so it's safe to run on every script rerun --
+    # and that safety matters here: caching this meant a schema change (like
+    # adding the Payment model) could silently never get applied if the
+    # platform reused a warm process across a deploy instead of a full
+    # restart, exactly what happened here.
     init_db()
 
 
@@ -131,6 +138,7 @@ admin_pages = [
     st.Page("pages/register_patient.py", title="Register Patient", icon="📝"),
     st.Page("pages/manage_appointments.py", title="Manage Appointments", icon="📅"),
     st.Page("pages/counter_payment.py", title="Counter Billing", icon="💳"),
+    st.Page("pages/manage_staff.py", title="Manage Staff", icon="🧑‍💼"),
     st.Page("pages/search_records.py", title="Search Records", icon="🔍"),
     st.Page("pages/doctor_directory.py", title="Doctor Directory", icon="👨‍⚕️"),
     st.Page("pages/symptom_checker.py", title="Symptom Checker", icon="🩺"),
@@ -138,7 +146,16 @@ admin_pages = [
     st.Page("pages/facilities.py", title="Facilities", icon="🏥"),
 ]
 
-pages = admin_pages if role == "admin" else patient_pages
+staff_pages = [
+    st.Page("pages/counter_payment.py", title="Counter Billing", icon="💳"),
+]
+
+if role == "admin":
+    pages = admin_pages
+elif role == "staff":
+    pages = staff_pages
+else:
+    pages = patient_pages
 
 with st.sidebar:
     st.markdown(f"**{APP_ICON} {APP_NAME}**")

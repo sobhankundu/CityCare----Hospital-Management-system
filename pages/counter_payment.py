@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 
 import streamlit as st
 
@@ -9,12 +9,15 @@ from services.payment_service import (
     revenue_summary_for_date, PaymentError,
 )
 from utils.ui import inject_css, page_header, status_badge
+from utils.upi import generate_upi_qr
 
 inject_css()
-page_header("Counter Billing", eyebrow="Front Desk")
+page_header("Counter Billing", eyebrow="Front Desk / Staff")
 st.caption(
-    "Payments are collected in person at the hospital counter -- this records "
-    "what was paid, it doesn't process cards or take online payment."
+    "Collect payment at the counter. UPI shows a real, scannable QR code -- "
+    "there's no payment gateway hooked up, so confirm receipt by checking "
+    "your own UPI app before marking it paid. Cash and card are settled on "
+    "your usual cash drawer / card machine; this just records what was collected."
 )
 
 col1, col2 = st.columns([1, 3])
@@ -52,18 +55,40 @@ with session_scope() as session:
                     st.caption(f"{payment.method} · collected by {payment.collected_by}")
 
             if payment.status == "Pending":
-                with st.expander("Collect payment"):
+                with st.expander("💳 Collect payment", expanded=False):
                     method = st.radio(
                         "Payment method", PAYMENT_METHODS,
                         key=f"method_{payment.id}", horizontal=True,
                     )
+
+                    if method == "UPI":
+                        qr_img = generate_upi_qr(
+                            amount=payment.amount,
+                            note=f"CityCare Token {appt.token_no}",
+                            txn_ref=f"APPT{appt.id}",
+                        )
+                        qcol, tcol = st.columns([1, 2])
+                        with qcol:
+                            st.image(qr_img, width=180)
+                        with tcol:
+                            st.markdown(f"**Ask the patient to scan and pay ₹{payment.amount}**")
+                            st.caption(
+                                "Check your own UPI app for the payment before confirming below -- "
+                                "this app can't detect it automatically."
+                            )
+                    elif method == "Cash":
+                        st.markdown(f"**Collect ₹{payment.amount} in cash.**")
+                    else:  # Card
+                        st.markdown(f"**Charge ₹{payment.amount} on your card machine.**")
+
                     pcol1, pcol2 = st.columns(2)
                     with pcol1:
-                        if st.button("Mark as paid", key=f"pay_{payment.id}", type="primary"):
+                        confirm_label = "✅ Confirm payment received" if method != "Cash" else "✅ Confirm cash received"
+                        if st.button(confirm_label, key=f"pay_{payment.id}", type="primary"):
                             try:
                                 collector = st.session_state["user"]["username"]
                                 mark_paid(session, appt.id, method, collected_by=collector)
-                                st.success(f"Payment of ₹{payment.amount} recorded.")
+                                st.success(f"₹{payment.amount} recorded via {method}.")
                                 st.rerun()
                             except PaymentError as e:
                                 st.error(str(e))
